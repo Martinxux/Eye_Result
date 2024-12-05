@@ -1,9 +1,9 @@
 ####
 # @Author                : Martinxux<wave.martin@qq.com>
-# @CreatedDate           : 2024-12-05 20:29:42
+# @CreatedDate           : 2024-12-05 20:37:46
 # @LastEditors           : Martinxux<wave.martin@qq.com>
-# @LastEditDate          : 2024-12-05 20:29:43
-# @FilePath              : show_result_v2.4.1.sh
+# @LastEditDate          : 2024-12-05 20:37:46
+# @FilePath              : show_result_v2.5.0.sh
 # 
 ####
 
@@ -58,6 +58,7 @@ result_file="./${filename}.csv"
 # 初始化全局最小值变量
 global_min_width=999999
 global_min_lane=""
+global_min_folder=""
 
 # 创建临时文件来存储最小值
 temp_file=$(mktemp)
@@ -119,9 +120,9 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                     min_fom=$fom
                 fi
 
-                # 更新全局最小值到临时文件
+                # 更新全局最小值到临时文件（添加文件夹信息）
                 if [ -n "$width" ]; then
-                    echo "$width $lane" >> "$temp_file"
+                    echo "$width $lane $(basename "$folder_name")" >> "$temp_file"
                 fi
 
                 # 输出并保存当前文件的结果
@@ -139,6 +140,7 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
         echo "$min_result_line" >> "$result_file"
         echo "$min_result_line"
         echo >> "$result_file"
+		echo
     else
         echo "没有找到数据" >> "$result_file"
         echo "没有找到数据"
@@ -147,8 +149,9 @@ done
 
 # 从临时文件中读取并计算全局最小值
 if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
-    read global_min_width global_min_lane <<< "$(sort -g "$temp_file" | head -n1)"
-    echo "所有文件中最小的 Width(UI) 是 $global_min_width，位于 Lane $global_min_lane"
+    # 读取最小值记录（包含width、lane和文件夹信息）
+    read global_min_width global_min_lane global_min_folder <<< "$(sort -g "$temp_file" | head -n1)"
+    echo "所有文件中最小的 Width(UI) 是 $global_min_width，位于文件夹 $global_min_folder 的 Lane $global_min_lane"
 else
     echo "未找到任何有效的 Width 数据"
 fi
