@@ -1,46 +1,37 @@
 ####
 # @Author                : Martinxux<wave.martin@qq.com>
-# @CreatedDate           : 2024-12-05 20:37:46
+# @CreatedDate           : 2024-12-06 18:01:27
 # @LastEditors           : Martinxux<wave.martin@qq.com>
-# @LastEditDate          : 2024-12-05 20:37:46
+# @LastEditDate          : 2024-12-06 18:01:27
 # @FilePath              : show_result_v2.5.0.sh
 # 
 ####
 
 
-#!/bin/bash
-# Version 2.5.0.20241205
 
-echo "██╗  ██╗ ██████╗████████╗     ███████╗██╗  ██╗ ██████╗ ██╗    ██╗"
-echo "██║  ██║██╔════╝╚══██╔══╝     ██╔════╝██║  ██║██╔═══██╗██║    ██║"
-echo "███████║██║  ███╗  ██║        ███████╗███████║██║   ██║██║ █╗ ██║"
-echo "██╔══██║██║   ██║  ██║        ╚════██║██╔══██║██║   ██║██║███╗██║"
-echo "██║  ██║╚██████╔╝  ██║███████╗███████║██║  ██║╚██████╔╝╚███╔███╔╝"
-echo "╚═╝  ╚═╝ ╚═════╝   ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝ ╚═════╝  ╚══╝╚══╝ "
+#!/bin/bash
+# Version 2.6.0.20241206
+echo "███████╗██╗   ██╗███████╗        ██████╗ ███████╗███████╗██╗   ██╗██╗  ████████╗"
+echo "██╔════╝╚██╗ ██╔╝██╔════╝        ██╔══██╗██╔════╝██╔════╝██║   ██║██║  ╚══██╔══╝"
+echo "█████╗   ╚████╔╝ █████╗          ██████╔╝█████╗  ███████╗██║   ██║██║     ██║   "
+echo "██╔══╝    ╚██╔╝  ██╔══╝          ██╔══██╗██╔══╝  ╚════██║██║   ██║██║     ██║   "
+echo "███████╗   ██║   ███████╗███████╗██║  ██║███████╗███████║╚██████╔╝███████╗██║   "
+echo "╚══════╝   ╚═╝   ╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚══════╝╚═╝   "
            
-echo "Version: 2.5.0.20241205"                                                       
+echo "Version: 2.6.0.20241206"   
+echo                                                    
 sleep 1
 
 root_dir=""
 
-# 解析命令行参数
-while getopts "f:" opt; do
-  case $opt in
-    f)
-      root_dir="$OPTARG"
-      ;;
-    \?)
-      echo "无效的选项：-$OPTARG" >&2
-      exit 1
-      ;;
-  esac
-done
-
-# 如果没有提供 -f 参数，则提示用户输入
-if [ -z "$root_dir" ]; then
-    echo "请输入要搜索的父目录路径："
-    read -r root_dir
+# 检查是否提供了目录路径作为脚本的第一个参数
+if [ $# -eq 0 ]; then
+    echo "请提供一个目录路径作为参数，示例 bash eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5。"
+    exit 1
 fi
+
+root_dir=$1
+
 
 # 验证输入路径
 while [ ! -d "$root_dir" ]; do
@@ -83,7 +74,7 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
 
     for file in "$folder_name"/*.txt; do
         if [ -f "$file" ]; then
-            if echo "$(basename "$file")" | grep -qE "^(S[0-9])?D[0-9]T[0-9]P[0-9]L[0-9]\.txt$"; then
+            if echo "$(basename "$file")" | grep -qE "^(S[0-9])?D[0-9]T[0-9]P[0-9]L[0-9]\.txt$|^Grp[0-9]Macro[0-9]Lane[0-9]\.txt$"; then
                 lane=$(basename "$file" | cut -d. -f1)
                 data=$(cat "$file")
 
@@ -97,7 +88,15 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                     width=$(echo "$data" | grep -oP "max width: [0-9]+ units, \K[0-9]+\.[0-9]+")
                 fi
                 if echo "$data" | grep -q "max height"; then
-                    height=$(echo "$data" | grep -oP "max height: \K[0-9]+")
+                    if echo "$(basename "$file")" | grep -qE "^Grp[0-9]Macro[0-9]Lane[0-9]\.txt$"; then
+                        height=$(echo "$data" | grep -oP "max height: [0-9]+ units, \K[0-9]+\.[0-9]+")
+                    elif echo "$(basename "$file")" | grep -qE "^(S[0-9])?D[0-9]T[0-9]P[0-9]L[0-9]\.txt$"; then
+                        height=$(echo "$data" | grep -oP "max height: \K[0-9]+")
+                        height_units=$(echo "$data" | grep -oP "max height: [0-9]+ units, \K[0-9]+\.[0-9]+")
+                        if [ -n "$height_units" ]; then
+                            height="$height_units"
+                        fi
+                    fi
                 fi
                 if echo "$data" | grep -q "area:"; then
                     area=$(echo "$data" | grep -oP "area: \K[0-9]+")
@@ -110,8 +109,10 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                 if [ -n "$width" ] && [ "$(echo "$width < $min_width" | bc -l)" -eq 1 ]; then
                     min_width=$width
                 fi
-                if [ -n "$height" ] && [ "$height" -lt "$min_height" ]; then
-                    min_height=$height
+                if [ -n "$height" ]; then
+                    if [ "$(echo "$height < $min_height" | bc -l)" -eq 1 ]; then
+                        min_height=$height
+                    fi
                 fi
                 if [ -n "$area" ] && [ "$area" -lt "$min_area" ]; then
                     min_area=$area
@@ -140,7 +141,7 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
         echo "$min_result_line" >> "$result_file"
         echo "$min_result_line"
         echo >> "$result_file"
-		echo
+        echo
     else
         echo "没有找到数据" >> "$result_file"
         echo "没有找到数据"
@@ -151,9 +152,9 @@ done
 if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
     # 读取最小值记录（包含width、lane和文件夹信息）
     read global_min_width global_min_lane global_min_folder <<< "$(sort -g "$temp_file" | head -n1)"
-    echo "所有文件中最小的 Width(UI) 是 $global_min_width，位于文件夹 $global_min_folder 的 Lane $global_min_lane"
+    echo "所有文件中最小眼宽 Width(UI) 是 $global_min_width UI，位于文件夹 $global_min_folder 的 Lane $global_min_lane"
 else
-    echo "未找到任何有效的 Width 数据"
+    echo "未找到任何有效的最小 Width 数据"
 fi
 
 # 清理临时文件
