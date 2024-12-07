@@ -92,10 +92,6 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                         height=$(echo "$data" | grep -oP "max height: [0-9]+ units, \K[0-9]+\.[0-9]+")
                     elif echo "$(basename "$file")" | grep -qE "^(S[0-9])?D[0-9]T[0-9]P[0-9]L[0-9]\.txt$"; then
                         height=$(echo "$data" | grep -oP "max height: \K[0-9]+")
-                        height_units=$(echo "$data" | grep -oP "max height: [0-9]+ units, \K[0-9]+\.[0-9]+")
-                        if [ -n "$height_units" ]; then
-                            height="$height_units"
-                        fi
                     fi
                 fi
                 if echo "$data" | grep -q "area:"; then
