@@ -36,6 +36,7 @@
 **也可使用 sh 解释器执行脚本，不需要赋权限**
 
 使用 sh 解释器运行 `bash eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5`
+
 ## 3. 结果查看
 
 运行完成后可在目录下找到 *all_result.txt* 文件，内容如下所示：
