@@ -29,6 +29,13 @@
 
 使用 bash 解释器运行 `bash eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5`
 
+运行 `./eye_result.sh` 即可，输入待分析的文件夹名称相对路径绝对路径都可
+
+运行 `./eye_result.sh [待分析文件夹路径]` 也可
+
+**也可使用 sh 解释器执行脚本，不需要赋权限**
+
+使用 sh 解释器运行 `bash eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5`
 ## 3. 结果查看
 
 运行完成后可在目录下找到 *all_result.txt* 文件，内容如下所示：
