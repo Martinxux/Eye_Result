@@ -10,7 +10,7 @@
 
 
 #!/bin/bash
-# Version 2.6.1.20241207
+# Version 2.7.1.20241218
 echo
 
 echo "███████╗██╗   ██╗███████╗        ██████╗ ███████╗███████╗██╗   ██╗██╗  ████████╗"
@@ -20,23 +20,146 @@ echo "██╔══╝    ╚██╔╝  ██╔══╝          ██�
 echo "███████╗   ██║   ███████╗███████╗██║  ██║███████╗███████║╚██████╔╝███████╗██║   "
 echo "╚══════╝   ╚═╝   ╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚══════╝╚═╝   "
            
-echo "Version: v2.6.1.20241207"   
+echo "Version: v2.7.1.20241218"   
 echo                                                    
 sleep 1
+
+# 定义颜色
+RED='\033[0;31m'
+NC='\033[0m' # 恢复默认颜色
+
+# 初始化Spec值
+WIDTH_SPEC=""
+HEIGHT_SPEC=""
+AREA_SPEC=""
+FOM_SPEC=""
+
+# 交互式输入Spec
+input_specs() {
+    echo "请输入各项指标Spec:"
+    read -p "眼宽 Width(UI) Spec(若无直接回车跳过): " WIDTH_SPEC
+    read -p "眼高 Height(mv/units) Spec(若无直接回车跳过): " HEIGHT_SPEC
+    read -p "眼域 Area(units) Spec (若无直接回车跳过): " AREA_SPEC
+    read -p "FOM Spec (若无直接回车跳过): " FOM_SPEC
+}
+
+# 判断是否通过规格
+check_spec() {
+    local value=$1
+    local spec=$2
+    
+    # 如果value或spec为空，视为通过
+    if [ -z "$value" ] || [ -z "$spec" ]; then
+        echo ""
+        return
+    fi
+    
+    # 使用 bc 进行浮点数比较
+    if (( $(echo "$value >= $spec" | bc -l) )); then
+        echo ""
+    else
+        echo "1"
+    fi
+}
+
+# 带颜色输出的包装函数（仅终端）
+color_output() {
+    local value=$1
+    local spec=$2
+    
+    # 检查是否需要高亮
+    local highlight=$(check_spec "$value" "$spec")
+    
+    if [ -n "$highlight" ]; then
+        echo -e "${RED}$value${NC}"
+    else
+        echo "$value"
+    fi
+}
+
+# 纯文本输出函数（用于CSV）
+plain_output() {
+    local value=$1
+    echo "$value"
+}
+
+# 打印表头函数
+print_table_header() {
+    printf "%-18s %-12s %-18s %-12s %-6s\n" "LaneNum" "Width(UI)" "$height_label" "Area" "FOM"
+    printf "%-18s %-12s %-18s %-12s %-6s\n" "--------" "---------" "-------------" "-----" "----"
+}
+
+# 打印数据行函数
+print_table_row() {
+    local lane=$1
+    local width=$2
+    local height=$3
+    local area=$4
+    local fom=$5
+
+    # 去除颜色控制字符计算实际长度
+    local width_stripped=$(echo "$(color_output "$width" "$WIDTH_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+    local height_stripped=$(echo "$(color_output "$height" "$HEIGHT_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+    local area_stripped=$(echo "$(color_output "$area" "$AREA_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+    local fom_stripped=$(echo "$(color_output "$fom" "$FOM_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+
+    # 计算需要填充的空格数量
+    local width_padding=$((16 - ${#width_stripped}))
+    local height_padding=$((14 - ${#height_stripped}))
+    local area_padding=$((12 - ${#area_stripped}))
+    local fom_padding=$((8 - ${#fom_stripped}))
+
+    # 打印带颜色的行数据，并添加空格进行填充
+    printf "%-18s %-16s %-14s %-11s %-8s\n" "$lane" \
+        "$(color_output "$width" "$WIDTH_SPEC")$(printf "%*s" "$width_padding" " ")" \
+        "$(color_output "$height" "$HEIGHT_SPEC")$(printf "%*s" "$height_padding" " ")" \
+        "$(color_output "$area" "$AREA_SPEC")$(printf "%*s" "$area_padding" " ")" \
+        "$(color_output "$fom" "$FOM_SPEC")$(printf "%*s" "$fom_padding" " ")"
+}
+
+# 打印最小值行函数
+print_min_values_row() {
+    local min_width=$1
+    local min_height=$2
+    local min_area=$3
+    local min_fom=$4
+
+    # 去除颜色控制字符计算实际长度
+    local min_width_stripped=$(echo "$(color_output "$min_width" "$WIDTH_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+    local min_height_stripped=$(echo "$(color_output "$min_height" "$HEIGHT_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+    local min_area_stripped=$(echo "$(color_output "$min_area" "$AREA_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+    local min_fom_stripped=$(echo "$(color_output "$min_fom" "$FOM_SPEC")" | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")
+
+    # 计算需要填充的空格数量
+    local min_width_padding=$((16 - ${#min_width_stripped}))
+    local min_height_padding=$((14 - ${#min_height_stripped}))
+    local min_area_padding=$((12 - ${#min_area_stripped}))
+    local min_fom_padding=$((8 - ${#min_fom_stripped}))
+
+    # 打印带颜色的最小值行数据，并添加空格进行填充
+    printf "%-18s %-16s %-14s %-11s %-8s\n" "MinValues" \
+        "$(color_output "$min_width" "$WIDTH_SPEC")$(printf "%*s" "$min_width_padding" " ")" \
+        "$(color_output "$min_height" "$HEIGHT_SPEC")$(printf "%*s" "$min_height_padding" " ")" \
+        "$(color_output "$min_area" "$AREA_SPEC")$(printf "%*s" "$min_area_padding" " ")" \
+        "$(color_output "$min_fom" "$FOM_SPEC")$(printf "%*s" "$min_fom_padding" " ")"
+}
 
 root_dir=""
 
 # 检查是否提供了目录路径作为脚本的第一个参数
 if [ $# -eq 0 ]; then
     echo "请提供一个目录路径作为参数"
-	echo
-	echo "示例 bash eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5"
-	echo
-	echo "或 ./eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5 （先赋权限给脚本文件）"
+    echo
+    echo "示例 bash eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5"
+    echo
+    echo "或 ./eye_result.sh Bridge-48_03.07-Deivce-0xa2dc15b3-GEN5 （先赋权限给脚本文件）"
     exit 1
 fi
 
 root_dir=$1
+
+# 调用输入规格函数
+input_specs
 
 # 验证输入路径
 while [ ! -d "$root_dir" ]; do
@@ -89,10 +212,10 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                 continue
             fi
 
-            # 写入表头
+            # 写入表头到终端
             if [ "$header_written" = false ]; then
-                echo "LaneNum,Width(UI),$height_label,Area(Units),fom" >> "$result_file"
-                echo "LaneNum,Width(UI),$height_label,Area(Units),fom"
+				echo "LaneNum,Width(UI),$height_label,Area(Units),fom" >> "$result_file"
+                print_table_header
                 header_written=true
             fi
 
@@ -143,19 +266,32 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                 echo "$width $lane $(basename "$folder_name")" >> "$temp_file"
             fi
 
-            # 输出并保存当前文件的结果
-            result_line="$lane,$width,$height,$area,$fom"
-            echo "$result_line" >> "$result_file"
-            echo "$result_line"
+            # 打印当前文件的行数据到终端
+            print_table_row "$lane" "$width" "$height" "$area" "$fom"
+
+            # 输出并保存当前文件的结果到CSV
+            width_csv=$(plain_output "$width")
+            height_csv=$(plain_output "$height")
+            area_csv=$(plain_output "$area")
+            fom_csv=$(plain_output "$fom")
+
+            result_line_csv="$lane,$width_csv,$height_csv,$area_csv,$fom_csv"
+            echo "$result_line_csv" >> "$result_file"
             found_results_in_folder=true
         fi
     done
 
     if [ "$found_results_in_folder" = true ]; then
-        # 将文件夹最小值写入 CSV
-        min_result_line="MinValues,$min_width,$min_height,$min_area,$min_fom"
-        echo "$min_result_line" >> "$result_file"
-        echo "$min_result_line"
+        # 打印文件夹的最小值行到终端
+        print_min_values_row "$min_width" "$min_height" "$min_area" "$min_fom"
+
+        min_width_csv=$(plain_output "$min_width")
+        min_height_csv=$(plain_output "$min_height")
+        min_area_csv=$(plain_output "$min_area")
+        min_fom_csv=$(plain_output "$min_fom")
+
+        min_result_line_csv="MinValues,$min_width_csv,$min_height_csv,$min_area_csv,$min_fom_csv"
+        echo "$min_result_line_csv" >> "$result_file"
         echo >> "$result_file"
         echo
     else
@@ -168,10 +304,34 @@ done
 if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
     # 读取最小值记录（包含width、lane和文件夹信息）
     read global_min_width global_min_lane global_min_folder <<< "$(sort -g "$temp_file" | head -n1)"
+	echo "自定义Spec为："
+	echo "眼高："$WIDTH_SPEC
+	echo "眼宽："$HEIGHT_SPEC
+	echo "眼域："$AREA_SPEC
+	echo "FOM："$FOM_SPEC
+	echo
     echo "所有文件中最小眼宽 Width(UI) 是 $global_min_width UI，位于文件夹 $global_min_folder 的 Lane $global_min_lane"
+	echo
 else
     echo "未找到任何有效的最小 Width 数据"
 fi
 
 # 清理临时文件
 rm -f "$temp_file"
+
+# 判断全局最小宽度是否满足规格
+if [ -z "$WIDTH_SPEC" ] || [ "$(echo "$global_min_width <= $WIDTH_SPEC" | bc -l)" -eq 1 ]; then
+    echo -e "${RED}███████╗ █████╗ ██╗██╗${NC}"
+	echo -e "${RED}██╔════╝██╔══██╗██║██║${NC}"
+	echo -e "${RED}█████╗  ███████║██║██║${NC}"
+	echo -e "${RED}██╔══╝  ██╔══██║██║██║${NC}"
+	echo -e "${RED}██║     ██║  ██║██║███████╗${NC}"
+	echo -e "${RED}╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝${NC}"
+else
+    echo -e "${NC}██████╗  █████╗ ███████╗███████╗"
+	echo -e "${NC}██╔══██╗██╔══██╗██╔════╝██╔════╝"
+	echo -e "${NC}██████╔╝███████║███████╗███████╗"
+	echo -e "${NC}██╔═══╝ ██╔══██║╚════██║╚════██║"
+	echo -e "${NC}██║     ██║  ██║███████║███████║"
+	echo -e "${NC}╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝"
+fi
