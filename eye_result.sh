@@ -10,7 +10,7 @@
 
 
 #!/bin/bash
-# Version 2.7.1.20241218
+# Version 2.7.2.20250108
 echo
 
 echo "███████╗██╗   ██╗███████╗        ██████╗ ███████╗███████╗██╗   ██╗██╗  ████████╗"
@@ -20,13 +20,17 @@ echo "██╔══╝    ╚██╔╝  ██╔══╝          ██�
 echo "███████╗   ██║   ███████╗███████╗██║  ██║███████╗███████║╚██████╔╝███████╗██║   "
 echo "╚══════╝   ╚═╝   ╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚══════╝╚═╝   "
            
-echo "Version: v2.7.1.20241218"   
+echo "Version: v2.7.2.20250108"   
 echo                                                    
 sleep 1
 
 # 定义颜色
-RED='\033[0;31m'
+RED='\033[0;31m' # 红色
+GREEN='\033[0;32m' # 绿色
 NC='\033[0m' # 恢复默认颜色
+
+# 清除 unmatched_files.log 文件内容
+> unmatched_files.log
 
 # 初始化Spec值
 WIDTH_SPEC=""
@@ -180,14 +184,17 @@ global_min_lane=""
 global_min_folder=""
 
 # 创建临时文件来存储最小值
-temp_file=$(mktemp)
+temp_width_file=$(mktemp)
+temp_height_file=$(mktemp)
 
 # 遍历所有子文件夹
 find "$root_dir" -type d | sort | while read -r folder_name; do
     if [ "$folder_name" = "$root_dir" ]; then
         continue
     fi
-
+    
+    echo "------------------------------------------------------------------------"
+    echo
     echo "folder: $folder_name"
     echo "$folder_name" >> "$result_file"
 
@@ -206,9 +213,10 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
             # 确定表头和高度单位
             if echo "$(basename "$file")" | grep -qE "^(S[0-9])?D[0-9]T[0-9]P[0-9]L[0-9]\.txt$"; then
                 height_label="Height(Units)"
-            elif echo "$(basename "$file")" | grep -qE "^Grp[0-9]Macro[0-9]Lane[0-9]\.txt$"; then
+            elif echo "$(basename "$file")" | grep -qE "^Grp[0-9]Macro[0-9]Lane[0-9](-[0-9]+)?\.txt$"; then
                 height_label="Height(mv)"
             else
+                echo "未匹配的文件: $file" >> unmatched_files.log
                 continue
             fi
 
@@ -219,7 +227,7 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
                 header_written=true
             fi
 
-            lane=$(basename "$file" | cut -d. -f1)
+            lane=$(basename "$file" | sed 's/-[0-9]\{14\}\.txt$//; s/\.txt$//')
             data=$(cat "$file")
 
             width=""
@@ -263,7 +271,10 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
 
             # 更新全局最小值到临时文件（添加文件夹信息）
             if [ -n "$width" ]; then
-                echo "$width $lane $(basename "$folder_name")" >> "$temp_file"
+                echo "$width $lane $(basename "$folder_name")" >> "$temp_width_file"
+            fi
+            if [ -n "$height" ]; then
+                echo "$height $lane $(basename "$folder_name")" >> "$temp_height_file"
             fi
 
             # 打印当前文件的行数据到终端
@@ -300,14 +311,14 @@ find "$root_dir" -type d | sort | while read -r folder_name; do
     fi
 done
 
-# 从临时文件中读取并计算全局最小值
-if [ -f "$temp_file" ] && [ -s "$temp_file" ]; then
+# 从临时文件中读取并计算全局最小 width
+if [ -f "$temp_width_file" ] && [ -s "$temp_width_file" ]; then
     # 读取最小值记录（包含width、lane和文件夹信息）
-    read global_min_width global_min_lane global_min_folder <<< "$(sort -g "$temp_file" | head -n1)"
+    read global_min_width global_min_lane global_min_folder <<< "$(sort -g "$temp_width_file" | head -n1)"
 	echo "自定义Spec为："
-	echo "眼高："$WIDTH_SPEC
-	echo "眼宽："$HEIGHT_SPEC
-	echo "眼域："$AREA_SPEC
+	echo "眼宽(UI)："$WIDTH_SPEC
+	echo "眼高(mv/unints)："$HEIGHT_SPEC
+	echo "眼域(units)："$AREA_SPEC
 	echo "FOM："$FOM_SPEC
 	echo
     echo "所有文件中最小眼宽 Width(UI) 是 $global_min_width UI，位于文件夹 $global_min_folder 的 Lane $global_min_lane"
@@ -316,22 +327,51 @@ else
     echo "未找到任何有效的最小 Width 数据"
 fi
 
-# 清理临时文件
-rm -f "$temp_file"
+# 从临时文件中读取并计算全局最小 Height
+if [ -f "$temp_height_file" ] && [ -s "$temp_height_file" ]; then
+    read global_min_height global_min_height_lane global_min_height_folder <<< "$(sort -g "$temp_height_file" | head -n1)"
+    echo "所有文件中最小眼高 Height(mv/unints) 是 $global_min_height，位于文件夹 $global_min_height_folder 的 Lane $global_min_height_lane"
+    echo
+else
+    echo "未找到任何有效的最小 Height 数据"
+fi
+
 
 # 判断全局最小宽度是否满足规格
-if [ -z "$WIDTH_SPEC" ] || [ "$(echo "$global_min_width <= $WIDTH_SPEC" | bc -l)" -eq 1 ]; then
-    echo -e "${RED}███████╗ █████╗ ██╗██╗${NC}"
+# 初始化判断结果
+width_pass=true
+height_pass=true
+
+# 检查 Width 是否符合规格
+if [ -n "$WIDTH_SPEC" ]; then
+    if [ "$(echo "$global_min_width >= $WIDTH_SPEC" | bc -l)" -ne 1 ]; then
+        width_pass=false
+    fi
+fi
+
+# 检查 Height 是否符合规格
+if [ -n "$HEIGHT_SPEC" ]; then
+    if [ "$(echo "$global_min_height >= $HEIGHT_SPEC" | bc -l)" -ne 1 ]; then
+        height_pass=false
+    fi
+fi
+# 综合判断
+if $width_pass && $height_pass; then
+	echo -e "${GREEN}██████╗  █████╗ ███████╗███████╗${NC}"
+	echo -e "${GREEN}██╔══██╗██╔══██╗██╔════╝██╔════╝${NC}"
+	echo -e "${GREEN}██████╔╝███████║███████╗███████╗${NC}"
+	echo -e "${GREEN}██╔═══╝ ██╔══██║╚════██║╚════██║${NC}"
+	echo -e "${GREEN}██║     ██║  ██║███████║███████║${NC}"
+	echo -e "${GREEN}╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝${NC}"
+else
+	echo -e "${RED}███████╗ █████╗ ██╗██╗${NC}"
 	echo -e "${RED}██╔════╝██╔══██╗██║██║${NC}"
 	echo -e "${RED}█████╗  ███████║██║██║${NC}"
 	echo -e "${RED}██╔══╝  ██╔══██║██║██║${NC}"
 	echo -e "${RED}██║     ██║  ██║██║███████╗${NC}"
 	echo -e "${RED}╚═╝     ╚═╝  ╚═╝╚═╝╚══════╝${NC}"
-else
-    echo -e "${NC}██████╗  █████╗ ███████╗███████╗"
-	echo -e "${NC}██╔══██╗██╔══██╗██╔════╝██╔════╝"
-	echo -e "${NC}██████╔╝███████║███████╗███████╗"
-	echo -e "${NC}██╔═══╝ ██╔══██║╚════██║╚════██║"
-	echo -e "${NC}██║     ██║  ██║███████║███████║"
-	echo -e "${NC}╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝"
 fi
+
+# 清理临时文件
+rm -f "$temp_width_file"
+rm -f "$temp_height_file"
