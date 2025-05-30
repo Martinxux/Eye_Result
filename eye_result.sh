@@ -10,7 +10,7 @@
 
 
 #!/bin/bash
-# Version 2.7.2.20250108
+# Version 2.8.0.20250109
 echo
 
 echo "███████╗██╗   ██╗███████╗        ██████╗ ███████╗███████╗██╗   ██╗██╗  ████████╗"
@@ -20,17 +20,17 @@ echo "██╔══╝    ╚██╔╝  ██╔══╝          ██�
 echo "███████╗   ██║   ███████╗███████╗██║  ██║███████╗███████║╚██████╔╝███████╗██║   "
 echo "╚══════╝   ╚═╝   ╚══════╝╚══════╝╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝ ╚══════╝╚═╝   "
            
-echo "Version: v2.7.2.20250108"   
+echo "Version: v2.8.0.20250109"   
 echo                                                    
 sleep 1
+
+# 清除 unmatched_files.log 文件内容
+> unmatched_files.log
 
 # 定义颜色
 RED='\033[0;31m' # 红色
 GREEN='\033[0;32m' # 绿色
 NC='\033[0m' # 恢复默认颜色
-
-# 清除 unmatched_files.log 文件内容
-> unmatched_files.log
 
 # 初始化Spec值
 WIDTH_SPEC=""
@@ -38,13 +38,65 @@ HEIGHT_SPEC=""
 AREA_SPEC=""
 FOM_SPEC=""
 
-# 交互式输入Spec
-input_specs() {
-    echo "请输入各项指标Spec:"
-    read -p "眼宽 Width(UI) Spec(若无直接回车跳过): " WIDTH_SPEC
-    read -p "眼高 Height(mv/units) Spec(若无直接回车跳过): " HEIGHT_SPEC
-    read -p "眼域 Area(units) Spec (若无直接回车跳过): " AREA_SPEC
-    read -p "FOM Spec (若无直接回车跳过): " FOM_SPEC
+# 定义三种固定 Spec 配置
+SPEC1=(0.51 50 "" "")  # HG4_PCIe Gen5 Width=0.51 UI, Height=50 units, Area 和 FOM 未设置
+SPEC2=(0.61 58 "" "") # HG3_PCIe Gen4 Width=0.61 UI, Height=58 units, Area 和 FOM 未设置
+SPEC3=(0.50 65 "" 200) # TIANQIN_PCIe Gen5 Width=0.50 UI, Height=65 mv, Area 未设置, FOM=200
+
+# 提取规格选择和输入逻辑到一个函数
+get_specs() {
+    select_spec() {
+        echo "请选择 Spec 配置："
+        echo "1. HG4_PCIe Gen5 (Width=${SPEC1[0]}, Height=${SPEC1[1]}, Area=${SPEC1[2]:-未设置}, FOM=${SPEC1[3]:-未设置})"
+        echo "2. HG3_PCIe Gen4 (Width=${SPEC2[0]}, Height=${SPEC2[1]}, Area=${SPEC2[2]:-未设置}, FOM=${SPEC2[3]:-未设置})"
+        echo "3. TIANQIN_PCIe Gen5 (Width=${SPEC3[0]}, Height=${SPEC3[1]}, Area=${SPEC3[2]:-未设置}, FOM=${SPEC3[3]})"
+        echo "4. 自定义"
+        read -p "输入数字 (1/2/3/4): " spec_choice
+
+        case $spec_choice in
+            1)
+                WIDTH_SPEC=${SPEC1[0]}
+                HEIGHT_SPEC=${SPEC1[1]}
+                AREA_SPEC=${SPEC1[2]}
+                FOM_SPEC=${SPEC1[3]}
+                ;;
+            2)
+                WIDTH_SPEC=${SPEC2[0]}
+                HEIGHT_SPEC=${SPEC2[1]}
+                AREA_SPEC=${SPEC2[2]}
+                FOM_SPEC=${SPEC2[3]}
+                ;;
+            3)
+                WIDTH_SPEC=${SPEC3[0]}
+                HEIGHT_SPEC=${SPEC3[1]}
+                AREA_SPEC=${SPEC3[2]}
+                FOM_SPEC=${SPEC3[3]}
+                ;;
+            4)
+                input_specs
+                ;;
+            *)
+                echo -e "${RED}错误：无效的选择${NC}"
+                exit 1
+                ;;
+        esac
+
+        echo "已选择 Spec 配置："
+        echo "眼宽 Width(UI) Spec: ${WIDTH_SPEC:-未设置}"
+        echo "眼高 Height(mv/units) Spec: ${HEIGHT_SPEC:-未设置}"
+        echo "眼域 Area(units) Spec: ${AREA_SPEC:-未设置}"
+        echo "FOM Spec: ${FOM_SPEC:-未设置}"
+    }
+
+    input_specs() {
+        echo "请输入各项指标Spec:"
+        read -p "眼宽 Width(UI) Spec(若无直接回车跳过): " WIDTH_SPEC
+        read -p "眼高 Height(mv/units) Spec(若无直接回车跳过): " HEIGHT_SPEC
+        read -p "眼域 Area(units) Spec (若无直接回车跳过): " AREA_SPEC
+        read -p "FOM Spec (若无直接回车跳过): " FOM_SPEC
+    }
+
+    select_spec
 }
 
 # 判断是否通过规格
@@ -163,7 +215,7 @@ fi
 root_dir=$1
 
 # 调用输入规格函数
-input_specs
+get_specs
 
 # 验证输入路径
 while [ ! -d "$root_dir" ]; do
@@ -315,11 +367,11 @@ done
 if [ -f "$temp_width_file" ] && [ -s "$temp_width_file" ]; then
     # 读取最小值记录（包含width、lane和文件夹信息）
     read global_min_width global_min_lane global_min_folder <<< "$(sort -g "$temp_width_file" | head -n1)"
-	echo "自定义Spec为："
-	echo "眼宽(UI)："$WIDTH_SPEC
-	echo "眼高(mv/unints)："$HEIGHT_SPEC
-	echo "眼域(units)："$AREA_SPEC
-	echo "FOM："$FOM_SPEC
+	echo "当前测试Spec为："
+	echo "眼宽(UI)：${WIDTH_SPEC:-N/A}"
+	echo "眼高(mv/unints)：${HEIGHT_SPEC:-N/A}"
+	echo "眼域(units)：${AREA_SPEC:-N/A}"
+	echo "FOM：${FOM_SPEC:-N/A}"
 	echo
     echo "所有文件中最小眼宽 Width(UI) 是 $global_min_width UI，位于文件夹 $global_min_folder 的 Lane $global_min_lane"
 	echo
